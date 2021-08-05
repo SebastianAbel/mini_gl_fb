@@ -171,7 +171,9 @@ pub fn get_fancy<ET: 'static>(config: Config, event_loop: &EventLoopWindowTarget
         buffer_size.height,
         vp_width,
         vp_height,
-        config.invert_y
+        config.invert_y,
+        config.buffer_count,
+        config.buffer_columns,
     );
 
     MiniGlFb {
@@ -206,8 +208,8 @@ impl MiniGlFb {
     ///
     /// Panics if the size of the buffer does not exactly match the correct size of the texture
     /// data required based on the buffers format.
-    pub fn update_buffer<T>(&mut self, image_data: &[T]) {
-        self.internal.update_buffer(image_data);
+    pub fn update_buffer<T>(&mut self, image_data: &[T], id: u8) {
+        self.internal.update_buffer(image_data, id);
     }
 
     pub fn redraw(&mut self) {

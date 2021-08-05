@@ -52,7 +52,10 @@ pub struct Config {
     /// most screen-space coordinate systems begin from the top-left. By explicitly setting this
     /// option to `false`, you can switch to screen-space coordinates rather than OpenGL
     /// coordinates. Otherwise, you will have to invert all mouse events received from winit/glutin.
-    pub invert_y: bool
+    pub invert_y: bool,
+
+    pub buffer_count: u8,
+    pub buffer_columns: u8
 }
 
 impl ConfigBuilder {
@@ -85,7 +88,9 @@ impl Default for Config {
             // :^)
             window_title: String::from("Super Mini GL Framebufferer 3!"),
             window_size: LogicalSize::new(600.0, 480.0),
-            invert_y: true
+            invert_y: true,
+            buffer_count: 1,
+            buffer_columns: 1
         }
     }
 }

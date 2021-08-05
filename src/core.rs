@@ -51,7 +51,9 @@ pub fn init_framebuffer(
     buffer_height: u32,
     viewport_width: u32,
     viewport_height: u32,
-    invert_y: bool
+    invert_y: bool,
+    buffer_count: u8,
+    buffer_columns: u8
 ) -> Framebuffer {
     // The config takes the size in u32 because that's all that actually makes sense but since
     // OpenGL is from the Land of C where a Working Type System doesn't exist, we work with i32s
@@ -131,13 +133,15 @@ pub fn init_framebuffer(
         vp_size: PhysicalSize::new(vp_width, vp_height),
         did_draw: false,
         inverted_y: invert_y,
+        buffer_count: buffer_count,
+        buffer_columns: buffer_columns,
         internal: FramebufferInternal {
             program,
             sampler_location,
             vertex_shader: Some(vertex_shader),
             geometry_shader: None,
             fragment_shader: Some(fragment_shader),
-            texture,
+            texture: [texture].to_vec(),
             vao,
             vbo,
             texture_format,
@@ -159,8 +163,8 @@ pub struct Internal {
 }
 
 impl Internal {
-    pub fn update_buffer<T>(&mut self, image_data: &[T]) {
-        self.fb.update_buffer(image_data);
+    pub fn update_buffer<T>(&mut self, image_data: &[T], id: u8) {
+        self.fb.update_buffer(image_data, id);
         self.context.swap_buffers().unwrap();
     }
 
@@ -359,7 +363,7 @@ pub struct FramebufferInternal {
     pub vertex_shader: Option<GLuint>,
     pub geometry_shader: Option<GLuint>,
     pub fragment_shader: Option<GLuint>,
-    pub texture: GLuint,
+    pub texture: Vec<GLuint>,
     pub vao: GLuint,
     pub vbo: GLuint,
     pub texture_format: (BufferFormat, GLenum),
@@ -409,6 +413,9 @@ pub struct Framebuffer {
     /// [`Config`][crate::Config] passed to [`get_fancy`][crate::get_fancy].
     pub inverted_y: bool,
 
+    pub buffer_count: u8,
+    pub buffer_columns: u8,
+
     /// Contains internal OpenGL things.
     ///
     /// Accessing fields directly is not the intended usage. If a feature is missing please open an
@@ -420,7 +427,7 @@ pub struct Framebuffer {
 }
 
 impl Framebuffer {
-    pub fn update_buffer<T>(&mut self, image_data: &[T]) {
+    pub fn update_buffer<T>(&mut self, image_data: &[T], id: u8) {
         // Check the length of the passed slice so this is actually a safe method.
         let (format, kind) = self.internal.texture_format;
         let expected_size_in_bytes = size_of_gl_type_enum(kind)
@@ -449,7 +456,7 @@ impl Framebuffer {
                     image_data.as_ptr() as *const _,
                 );
             }
-        })
+        }, id)
     }
 
     pub fn use_vertex_shader(&mut self, source: &str) {
@@ -492,20 +499,32 @@ impl Framebuffer {
     }
 
     pub fn redraw(&mut self) {
-        self.draw(|_| {})
+        self.draw(|_| {}, 0)
     }
 
     /// Draw the quad to the active context. Optionally issue other commands after binding
     /// everything but before drawing it.
     ///
     /// You probably want [`redraw`][Framebuffer::redraw] (equivalent to `.draw(|_| {})`).
-    pub fn draw<F: FnOnce(&Framebuffer)>(&mut self, f: F) {
+    pub fn draw<F: FnOnce(&Framebuffer)>(&mut self, f: F, id: u8) {
+        let buffer_rows = if (self.buffer_count % self.buffer_columns) != 0 {1} else {0}
+        + (self.buffer_count / self.buffer_columns) as i32;
+        
+        let x_offset = (id as i32 % self.buffer_columns as i32) * (self.vp_size.width / self.buffer_columns as i32);
+        let y_offset = (id as i32 / self.buffer_columns as i32) * (self.vp_size.height /  buffer_rows);
+        
+        let w = self.vp_size.width / self.buffer_columns as i32;
+        let h = self.vp_size.height / buffer_rows;
+
+
+
+
         unsafe {
-            gl::Viewport(0, 0, self.vp_size.width, self.vp_size.height);
+            gl::Viewport(x_offset, y_offset, w, h);
             gl::UseProgram(self.internal.program);
             gl::BindVertexArray(self.internal.vao);
             gl::ActiveTexture(0);
-            gl::BindTexture(gl::TEXTURE_2D, self.internal.texture);
+            gl::BindTexture(gl::TEXTURE_2D, self.internal.texture[0]);
             f(self);
             gl::DrawArrays(gl::TRIANGLES, 0, 6);
             gl::BindTexture(gl::TEXTURE_2D, 0);
